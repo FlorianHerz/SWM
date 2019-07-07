@@ -1,13 +1,16 @@
 # -*- coding: cp1252 -*-
-###################################################################################################
-#
-# SWM_adapdet by Florian Herz
-# Berechnet für einen selbst geählten Zeitraum die PET und speichert die verwendeten Klimadaten
-# in einer Tabelle in einer GDB ab.
-#
-#Erweiterung um die AET (allerdings fehlt die Veränderung des Bodenwasserspeichers des Vortages
-#
-###################################################################################################
+
+""" SWM für ArcGIS """
+""" Soil Water Model in Python für ArcGIS für die Lehrveranstaltung "GIS für Hydrologische \
+    Fragestellungen" des Fachbereichs 11 Physische Geographie der Goethe Universität Frankfurt """
+
+__author__ = "Florian Herz"
+__copyright__ = "Copyright 2019, FH"
+__credits__ = ["Florian Herz", "Dr. Hannes Müller Schmied", "Dr. Irene Marzolff"]
+__version__ = "1.0"
+__maintainer__ = "Florian Herz"
+__email__ = "florian13.herz@googlemail.com"
+__status__ = "Development"
 
 
 #Import der Systemmodule
