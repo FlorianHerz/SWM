@@ -81,7 +81,8 @@ check_AET = str(arcpy.GetParameterAsText(8)) #Datatype: boolean
 #Erstellen des Dateipfad der Basisdaten und der Ergebnisdatenbank
 
 ergebnisse = arcpy.CreateFileGDB_management(ordner, name)
-arcpy.env.workspace = ordner+r'\{}'.format(name)
+arcpy.env.workspace = r'{0}\{1}'.format(ordner, name)
+arcpy.env.scratchWorkspace = arcpy.env.workspace
 
 arcpy.AddMessage("Die Ergebnisdatenbank wurde im Verzeichnis {} erstellt." \
                  .format(ordner))
