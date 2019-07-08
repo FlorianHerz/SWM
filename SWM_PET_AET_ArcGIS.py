@@ -35,74 +35,71 @@ __maintainer__ = "Florian Herz"
 __email__ = "florian13.herz@googlemail.com"
 __status__ = "Development"
 
-
-#Import der Systemmodule
-import os
-import sys
+#  Import der Systemmodule
 import arcpy
 from arcpy.sa import *
 
-#Einstellungen und Erweiterungen laden
+#  Einstellungen und Erweiterungen laden
 
 arcpy.CheckOutExtension("Spatial")
 
 arcpy.AddMessage("Systemmodule wurden geladen.")
 
-#Benutzereingaben
+#  Benutzereingaben
 
-basisdaten = arcpy.GetParameterAsText(0) #Datatype: workspace
-#Default: C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb
+basisdaten = arcpy.GetParameterAsText(0)  # Datatype: workspace
+#  Default: C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb
 
-name = arcpy.GetParameterAsText(1) #Datatype: string
-#Default: SWM_Ergebnisdatenbank_2003-2004_I.gdb
+name = arcpy.GetParameterAsText(1)  # Datatype: string
+#  Default: SWM_Ergebnisdatenbank_2003-2004_I.gdb
 
-ordner = arcpy.GetParameterAsText(2) #Datatype: folder
-#Default: C:\HiWi_Hydro-GIS
+ordner = arcpy.GetParameterAsText(2)  # Datatype: folder
+#  Default: C:\HiWi_Hydro-GIS
 
-start = int(arcpy.GetParameterAsText(3)) #Datatype: long
-#Default: 20030101
+start = int(arcpy.GetParameterAsText(3))  # Datatype: long
+#  Default: 20030101
 
-ende = int(arcpy.GetParameterAsText(4)) #Datatype: long
-#Default: 20041231
+ende = int(arcpy.GetParameterAsText(4))  # Datatype: long
+#  Default: 20041231
 
-Sinit = arcpy.GetParameterAsText(5) #Datatype: geodataset
-#Default: C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L
+Sinit = arcpy.GetParameterAsText(5)  # Datatype: geodataset
+#  Default: C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L
 
-RP_faktor = float(arcpy.GetParameterAsText(6))#Datatype: double
-#Default: 0.85
+RP_faktor = float(arcpy.GetParameterAsText(6))  # Datatype: double
+#  Default: 0.85
 
-#Abfrage welche Daten gespeichert werden sollen
-check_PET = str(arcpy.GetParameterAsText(7)) #Datatype: boolean
-#Default: false
+#  Abfrage welche Daten gespeichert werden sollen
+check_PET = str(arcpy.GetParameterAsText(7))  # Datatype: boolean
+#  Default: false
 
-check_AET = str(arcpy.GetParameterAsText(8)) #Datatype: boolean
-#Default: false
+check_AET = str(arcpy.GetParameterAsText(8))  # Datatype: boolean
+#  Default: false
 
-#Erstellen des Dateipfad der Basisdaten und der Ergebnisdatenbank
+#  Erstellen des Dateipfad der Basisdaten und der Ergebnisdatenbank
 
 ergebnisse = arcpy.CreateFileGDB_management(ordner, name)
 arcpy.env.workspace = r'{0}\{1}'.format(ordner, name)
 arcpy.env.scratchWorkspace = arcpy.env.workspace
 
-arcpy.AddMessage("Die Ergebnisdatenbank wurde im Verzeichnis {} erstellt." \
+arcpy.AddMessage("Die Ergebnisdatenbank wurde im Verzeichnis {} erstellt."
                  .format(ordner))
 
-#Zuweisung der Rasterdatensätze
+#  Zuweisung der Rasterdatensätze
 
-haude_dic = { 1 : Raster(r'{}\Haude_1'.format(basisdaten)), \
-              2 : Raster(r'{}\Haude_2'.format(basisdaten)), \
-              3 : Raster(r'{}\Haude_3'.format(basisdaten)), \
-              4 : Raster(r'{}\Haude_4'.format(basisdaten)), \
-              5 : Raster(r'{}\Haude_5'.format(basisdaten)), \
-              6 : Raster(r'{}\Haude_6'.format(basisdaten)), \
-              7 : Raster(r'{}\Haude_7'.format(basisdaten)), \
-              8 : Raster(r'{}\Haude_8'.format(basisdaten)), \
-              9 : Raster(r'{}\Haude_9'.format(basisdaten)), \
-              10 : Raster(r'{}\Haude_10'.format(basisdaten)), \
-              11 : Raster(r'{}\Haude_11'.format(basisdaten)), \
-              12 : Raster(r'{}\Haude_12'.format(basisdaten))}
+haude_dic = {1: Raster(r'{}\Haude_1'.format(basisdaten)),
+             2: Raster(r'{}\Haude_2'.format(basisdaten)),
+             3: Raster(r'{}\Haude_3'.format(basisdaten)),
+             4: Raster(r'{}\Haude_4'.format(basisdaten)),
+             5: Raster(r'{}\Haude_5'.format(basisdaten)),
+             6: Raster(r'{}\Haude_6'.format(basisdaten)),
+             7: Raster(r'{}\Haude_7'.format(basisdaten)),
+             8: Raster(r'{}\Haude_8'.format(basisdaten)),
+             9: Raster(r'{}\Haude_9'.format(basisdaten)),
+             10: Raster(r'{}\Haude_10'.format(basisdaten)),
+             11: Raster(r'{}\Haude_11'.format(basisdaten)),
+             12: Raster(r'{}\Haude_12'.format(basisdaten))}
 
-tftable = r'{}\TempFeuchte'.format(basisdaten) #Grundlegende Klimadatentabelle
+tftable = r'{}\TempFeuchte'.format(basisdaten)  # Grundlegende Klimadatentabelle
 FK = Raster(r'{}\FK_von_L'.format(basisdaten))
 RP = FK * RP_faktor
 WP = Raster(r'{}\WP'.format(basisdaten))
@@ -111,10 +108,10 @@ RPdiffWP = RP - WP
 Svortag = Sinit
 arcpy.AddMessage("Berechnung der Rasterdatensätze war erfolgreich.")
 
-#Iteration durch die ausgewählten Klimadaten
+#  Iteration durch die ausgewählten Klimadaten
 
 with arcpy.da.SearchCursor(tftable, ['TagesID', 'Jahr', 'Monat', 'Tag',
-                                     'RelFeu', 'Temp'], "TagesID >= {0} AND \
+                                     'RelFeu', 'Temp'], "TagesID >= {0} AND\
                                      TagesID <= {1}".format(start, ende)) \
                                      as klimacursor:
     for row in klimacursor:
@@ -124,30 +121,26 @@ with arcpy.da.SearchCursor(tftable, ['TagesID', 'Jahr', 'Monat', 'Tag',
         monat = int(row[2])
         tag = int(row[3])
         relf = float(row[4])
-        temp = float(row[5])
+        temp = float(row[5])/10.0
 
-        
-        #Berechnung der PET
-        
-        Es = 6.1 * 10**((7.5 * (temp)/10.0) / ((temp)/10.0 + 237.2))
-        PET = haude_dic[monat] * Es * (1.0 - relf / 100.0) #Berechnung der PET
+        # Berechnung der PET
 
-        #Speichern der täglichen PET Rasterdateien
+        Es = 6.1 * 10**((7.5 * temp) / (temp + 237.2))
+        PET = haude_dic[monat] * Es * (1.0 - relf / 100.0)  # Berechnung der PET
+
+        #  Speichern der täglichen PET Rasterdateien
         if check_PET == 'true':
             PET.save("PET_{}".format(ID))
         
-        #Berechnung der AET
+        # Berechnung der AET
 
-        AET = Con(gewaesser == 1, PET, Con(Svortag >= RP, PET, \
-                Con(RPdiffWP == 0, 0, ((Svortag - WP)/RPdiffWP)*PET)))
+        AET = Con(gewaesser == 1, PET, Con(Svortag >= RP, PET, Con(RPdiffWP == 0, 0, ((Svortag - WP)/RPdiffWP)*PET)))
 
-        #Speichern der täglichen AET Rasterdateien
+        # Speichern der täglichen AET Rasterdateien
         if check_AET == 'true':
             AET.save("AET_{}".format(ID))
 
-        
-        arcpy.AddMessage("Fertig mit der Berechnung des {0}.{1}.{2}" \
-                         .format(tag, monat, jahr))
+        arcpy.AddMessage("Fertig mit der Berechnung des {0}.{1}.{2}".format(tag, monat, jahr))
         
 # Delete cursor objects
 del klimacursor
