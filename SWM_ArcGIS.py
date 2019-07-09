@@ -51,7 +51,7 @@ start = int(arcpy.GetParameterAsText(3))  # Datatype: long #  Default: 20030101
 
 end = int(arcpy.GetParameterAsText(4))  # Datatype: long #  Default: 20041231
 
-s_init = arcpy.GetParameterAsText(5)  # Datatype: geodataset
+s_init = Raster(arcpy.GetParameterAsText(5))  # Datatype: geodataset
 #  Default: C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L
 
 rp_factor = float(arcpy.GetParameterAsText(6))  # Datatype: double #  Default: 0.85

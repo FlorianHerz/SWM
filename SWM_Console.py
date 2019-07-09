@@ -39,14 +39,37 @@ arcpy.CheckOutExtension("Spatial")
 
 print("Systemmodule geladen.")
 
+#  Funktionen
+
+
+def get_pet(haude_factor, temperature, humidity):
+    """Berechnung eines Rasterdatensatzes der PET nach Haude.
+    Es wird der Rasterdatensatz zum  Haude-Faktor mit der Temperatur und der relativen Luftfeuchtigkeit benötigt.
+    """
+    pet_raster = haude_factor * (6.1 * 10 ** ((7.5 * temperature) / (temperature + 237.2))) * (1.0 - humidity / 100.0)
+    return pet_raster
+
+
+def get_aet(pet_raster, water_raster, s_pre_raster, rp_raster, rpwp_dif_raster, wp_raster):
+    """Berechnung der AET je Rasterzelle.
+    Der Wert der AET entspricht bei Gewässerpixeln, sowie Zellen in denen der Bodenwassersgehalt oberhalb des RP liegt
+    der PET. Die AET ist 0 wenn der RP gleich dem WP ist. Bei den anderen Pixeln wird die AET gemäß des SWMs berechnet.
+    """
+    aet_raster = Con(water_raster == 1, pet_raster,
+                     Con(s_pre_raster >= rp_raster, pet_raster,
+                         Con(rpwp_dif_raster == 0, 0, ((s_pre_raster - wp_raster) / rpwp_dif_raster) * pet_raster)))
+    return aet_raster
+
+
+
 # Vorgabe der Benutzereingaben
 
 data = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb'
-name = r'SWM_Ergebnisdatenbank_I.gdb'
+name = r'SWM_Ergebnisdatenbank_II.gdb'
 folder = r'C:\HiWi_Hydro-GIS'
 start = 20040628
 end = 20040704
-s_init = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L'
+s_init = Raster(r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L')
 rp_factor = 0.85
 check_pet = "true"
 check_aet = "true"
@@ -77,7 +100,7 @@ climatedata = r'{}\TempFeuchte'.format(data)  # Grundlegende Klimadatentabelle
 fk = Raster(r'{}\fk_von_L'.format(data))
 rp = fk * rp_factor
 wp = Raster(r'{}\wp'.format(data))
-gewaesser = Raster(r'{}\Gewaesser'.format(data))
+water = Raster(r'{}\Gewaesser'.format(data))
 rpwp_dif = rp - wp
 s_pre = s_init
 
@@ -98,18 +121,16 @@ with arcpy.da.SearchCursor(climatedata, ['Tagesid', 'Jahr', 'Monat', 'Tag', 'Rel
 
         # Berechnung der PET
 
-        es = 6.1 * 10 ** ((7.5 * temp) / (temp + 237.2))
-        pet = haude_dic[month] * es * (1.0 - humid / 100.0)  # Berechnung der PET
-
-        #  Speichern der täglichen PET Rasterdateien
-        if check_pet == 'true':
-            pet.save("PET_{}".format(id_day))
+        pet = get_pet(haude_dic[month], temp, humid)
 
         # Berechnung der AET
 
-        aet = Con(gewaesser == 1, pet, Con(s_pre >= rp, pet, Con(rpwp_dif == 0, 0, ((s_pre - wp) / rpwp_dif) * pet)))
+        aet = get_aet(pet, water, s_pre, rp, rpwp_dif, wp)
 
-        # Speichern der täglichen AET Rasterdateien
+        #  Speichern der täglichen Rasterdateien
+        if check_pet == 'true':
+            pet.save("PET_{}".format(id_day))
+
         if check_aet == 'true':
             aet.save("AET_{}".format(id_day))
 
