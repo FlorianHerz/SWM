@@ -61,18 +61,39 @@ def get_aet(pet_raster, water_raster, s_pre_raster, rp_raster, rpwp_dif_raster, 
     return aet_raster
 
 
+def get_precipitation(timeseries, stations, date, idw_pow, rastercellsize):
+    """Niederschlagsinterpolation
+    """
+    arcpy.MakeQueryTable_management(in_table=[timeseries, stations], out_table="p_temp",
+                                    in_key_field_option="USE_KEY_FIELDS",
+                                    in_key_field="N_Messstationen.Stationsnummer;N_Zeitreihen.Stationsnummer",
+                                    in_field="",
+                                    where_clause="N_Zeitreihen.Stationsnummer = N_Messstationen.Stationsnummer \
+                                    AND N_Zeitreihen.TagesID = {}".format(date))
+
+    idw = arcpy.gp.Idw_sa("p_temp", "N_Zeitreihen.Tagessumme_mm",
+                          "{0}/Niederschlag_{1}".format(arcpy.env.workspace, date), rastercellsize, idw_pow,
+                          "FIXED 20000 5", "")
+
+    arcpy.Delete_management("p_temp")
+
+    return idw
+
 
 # Vorgabe der Benutzereingaben
 
+
 data = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb'
-name = r'SWM_Ergebnisdatenbank_II.gdb'
+name = r'SWM_Ergebnisdatenbank_XIX.gdb'
 folder = r'C:\HiWi_Hydro-GIS'
 start = 20040628
 end = 20040704
 s_init = Raster(r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L')
 rp_factor = 0.85
+idw_exponent = "1"
 check_pet = "true"
 check_aet = "true"
+check_p = "false"
 
 #  Erstellen der Ergebnisdatenbank und Wahl des Arbeitsverzeichnisses
 
@@ -103,6 +124,9 @@ wp = Raster(r'{}\wp'.format(data))
 water = Raster(r'{}\Gewaesser'.format(data))
 rpwp_dif = rp - wp
 s_pre = s_init
+p_data = r'{}\N_Zeitreihen'.format(data)
+p_stations = r'{}\N_Messstationen'.format(data)
+cellsize = arcpy.GetRasterProperties_management(s_init, "CELLSIZEX")
 
 print("Berechnung der Rasterdatensätze war erfolgreich.")
 
@@ -127,12 +151,19 @@ with arcpy.da.SearchCursor(climatedata, ['Tagesid', 'Jahr', 'Monat', 'Tag', 'Rel
 
         aet = get_aet(pet, water, s_pre, rp, rpwp_dif, wp)
 
+        #  Niederschlagsinterpolation
+
+        precipitation = get_precipitation(p_data, p_stations, id_day, idw_exponent, cellsize)
+
         #  Speichern der täglichen Rasterdateien
         if check_pet == 'true':
             pet.save("PET_{}".format(id_day))
 
         if check_aet == 'true':
             aet.save("AET_{}".format(id_day))
+
+        if check_p == 'false':
+            arcpy.Delete_management("{0}/Niederschlag_{1}".format(arcpy.env.workspace, id_day))
 
         print("Fertig mit der Berechnung des {0}.{1}.{2}".format(day, month, year))
 
