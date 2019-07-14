@@ -71,9 +71,7 @@ def get_precipitation(timeseries, stations, date, idw_pow, rastercellsize):
                                     where_clause="N_Zeitreihen.Stationsnummer = N_Messstationen.Stationsnummer \
                                     AND N_Zeitreihen.TagesID = {}".format(date))
 
-    idw = arcpy.gp.Idw_sa("p_temp", "N_Zeitreihen.Tagessumme_mm",
-                          "{0}/Niederschlag_{1}".format(arcpy.env.workspace, date), rastercellsize, idw_pow,
-                          "FIXED 20000 5", "")
+    idw = Idw("p_temp", "N_Zeitreihen.Tagessumme_mm", rastercellsize, idw_pow, "FIXED 20000 5", "")
 
     arcpy.Delete_management("p_temp")
 
@@ -84,7 +82,7 @@ def get_precipitation(timeseries, stations, date, idw_pow, rastercellsize):
 
 
 data = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb'
-name = r'SWM_Ergebnisdatenbank_XIX.gdb'
+name = r'SWM_Ergebnisdatenbank_I.gdb'
 folder = r'C:\HiWi_Hydro-GIS'
 start = 20040628
 end = 20040704
@@ -93,7 +91,7 @@ rp_factor = 0.85
 idw_exponent = "1"
 check_pet = "true"
 check_aet = "true"
-check_p = "false"
+check_p = "true"
 
 #  Erstellen der Ergebnisdatenbank und Wahl des Arbeitsverzeichnisses
 
@@ -162,8 +160,8 @@ with arcpy.da.SearchCursor(climatedata, ['Tagesid', 'Jahr', 'Monat', 'Tag', 'Rel
         if check_aet == 'true':
             aet.save("AET_{}".format(id_day))
 
-        if check_p == 'false':
-            arcpy.Delete_management("{0}/Niederschlag_{1}".format(arcpy.env.workspace, id_day))
+        if check_p == 'true':
+            precipitation.save("{0}/Niederschlag_{1}".format(arcpy.env.workspace, id_day))
 
         print("Fertig mit der Berechnung des {0}.{1}.{2}".format(day, month, year))
 

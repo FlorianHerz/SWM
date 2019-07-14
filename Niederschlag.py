@@ -36,28 +36,47 @@ from arcpy.sa import *
 #  Einstellungen und Erweiterungen laden
 
 arcpy.CheckOutExtension("Spatial")
+arcpy.env.overwriteOutput = True
 
 data = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb'
-name = r'SWM_Ergebnisdatenbank_XVI.gdb'
+name = r'SWM_Ergebnisdatenbank_p.gdb'
 folder = r'C:\HiWi_Hydro-GIS'
 output = arcpy.CreateFileGDB_management(folder, name)
 ordner = arcpy.env.workspace = folder+r'\{}'.format(name)
 
 s_init = Raster(r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L')
 
-date = 20040609
+date = 20040714
 idw_pow = "1"
 
 p_data = r'{}\N_Zeitreihen'.format(data)
 p_stations = r'{}\N_Messstationen'.format(data)
+p_temp = arcpy.Copy_management(p_stations, "p_temp")
+
 cellsize = arcpy.GetRasterProperties_management(s_init, "CELLSIZEX")
+station = []
+p_sum = []
 
-arcpy.MakeQueryTable_management(in_table=[p_data, p_stations], out_table="p_temp", in_key_field_option="USE_KEY_FIELDS",
-                                in_key_field="N_Messstationen.Stationsnummer;N_Zeitreihen.Stationsnummer", in_field="",
-                                where_clause="N_Zeitreihen.Stationsnummer = N_Messstationen.Stationsnummer \
-                                AND N_Zeitreihen.TagesID = {}".format(date))
+arcpy.AddField_management(p_temp, "Tagessumme_mm", "DOUBLE")
 
-arcpy.gp.Idw_sa("p_temp", "N_Zeitreihen.Tagessumme_mm", "{0}/Idw_p_{1}".format(arcpy.env.workspace, date),
-                cellsize, idw_pow, "FIXED 20000 5", "")
+with arcpy.da.SearchCursor(p_data, ["Stationsnummer", "Tagessumme_mm", "TagesID"], "TagesID = {}".format(date)) as cursor:
+    for row in cursor:
+        station.append(row[0])
+        p_sum.append(row[1])
 
+for i in range(len(station)):
+    with arcpy.da.UpdateCursor(p_temp, ["Stationsnummer", "Tagessumme_mm"]) as p_cursor:
+        for row in p_cursor:
+            if row[0] == station[i]:
+                row[1] = p_sum[i]
+
+            p_cursor.updateRow(row)
+
+idw = Idw(p_temp, "Tagessumme_mm", cellsize, idw_pow, "FIXED 20000 5", "")
+
+idw.save("IDW_{}".format(date))
+
+# Delete cursor objects
+del cursor
+del p_cursor
 arcpy.Delete_management("p_temp")
