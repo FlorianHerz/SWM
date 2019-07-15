@@ -37,6 +37,7 @@ from arcpy.sa import *
 
 arcpy.CheckOutExtension("Spatial")
 arcpy.env.overwriteOutput = True
+arcpy.env.extent = s_init
 
 data = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb'
 name = r'SWM_Ergebnisdatenbank_p.gdb'
@@ -72,7 +73,7 @@ for i in range(len(station)):
 
             p_cursor.updateRow(row)
 
-idw = Idw(p_temp, "Tagessumme_mm", cellsize, idw_pow, "FIXED 20000 5", "")
+idw = Idw(p_temp, "Tagessumme_mm", cellsize, idw_pow, RadiusFixed(20000.00000, 5), "")
 
 idw.save("IDW_{}".format(date))
 
