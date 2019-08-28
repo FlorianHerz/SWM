@@ -144,39 +144,6 @@ def get_precipitation(timeseries, p_stations_temp, date, idw_pow, rastercellsize
     return idw
 
 
-def overflow(p_raster, s_pre_raster, fk_raster):
-    """
-    Funktion zur Berechnung des direkten Abflusses des Niederschlags bei gesättigtem Bodenwasserspeicher.
-    :param p_raster:
-    :param s_pre_raster:
-    :param fk_raster:
-    :return:
-    """
-    r_overflow = Con(p_raster + s_pre_raster > fk_raster,
-                     p_raster + s_pre_raster - fk_raster, 0)
-
-    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "overflow ausgeführt.")
-    return r_overflow
-
-
-def runoff_land(water_raster, lambda_wert, wp_raster, p_raster, s_pre_raster, fk_raster):
-    """
-    Funktion zur Berechnung des Abflusses von Landpixeln.
-    :param water_raster:
-    :param lambda_wert:
-    :param wp_raster:
-    :param p_raster:
-    :param s_pre_raster:
-    :param fk_raster:
-    :return:
-    """
-    r_land = Con(water_raster == 0,
-                 lambda_wert * ((s_pre_raster - wp_raster) ** 2) + overflow(p_raster, s_pre_raster, fk_raster), 0)
-
-    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "r_land ausgeführt.")
-    return r_land
-
-
 def get_runoff(water_raster, lambda_wert, wp_raster, p_raster, s_pre_raster, fk_raster, pet_raster, bool_r, date):
     """
     Funktion zur Berechnung des Gesamtabflusses. Der Gesamtabfluss ist die Summe des Abflusses von Landpixeln und von
@@ -193,8 +160,11 @@ def get_runoff(water_raster, lambda_wert, wp_raster, p_raster, s_pre_raster, fk_
     :param date:
     :return:
     """
-    r = runoff_land(water_raster, lambda_wert, wp_raster, p_raster, s_pre_raster, fk_raster) + \
-        water_raster * (p_raster - pet_raster)
+    r_overflow = Con(p_raster + s_pre_raster > fk_raster, p_raster + s_pre_raster - fk_raster, 0)
+
+    r_land = Con(water_raster == 0, lambda_wert * ((s_pre_raster - wp_raster) ** 2) + r_overflow, 0)
+
+    r = r_land + water_raster * Con(p_raster > pet_raster, p_raster - pet_raster, 0)
 
     if bool_r:
         r.save("R_{}".format(date))
@@ -217,25 +187,26 @@ def get_soilwater(s_pre_raster, p_raster, aet_raster, runoff_raster, bool_s, dat
     soilwater = s_pre_raster + p_raster - aet_raster - runoff_raster
 
     if bool_s:
-        s.save("S_{}".format(date))
+        soilwater.save("S_{}".format(date))
     arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Bodenwasserspeicher ausgeführt.")
     return soilwater
 
 
-def get_q_m3(runoff_raster, rastercellsize):
-    """
-    Berechnet den Gesamtabfluss des Einzugsgebietes in m^3.
-    :param runoff_raster:
-    :param rastercellsize: Größe der Rasterzellen
-    :return: täglicher Gesamtabfluss in m^3
-    """
-    array = arcpy.RasterToNumPyArray(runoff_raster, nodata_to_value=0)
-    r_sum = array.sum()
-    r_m3 = (r_sum * 0.001 * rastercellsize ** 2)
-
-    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Q in m3 berechnet.")
-
-    return r_m3
+#def get_q_m3(runoff_raster, rastercellsize):
+#    """
+#    Berechnet den Gesamtabfluss des Einzugsgebietes in m^3.
+#    :param runoff_raster:
+#    :param rastercellsize: Größe der Rasterzellen
+#    :return: täglicher Gesamtabfluss in m^3
+#    """
+#    import numpy
+#    numpy.array = arcpy.RasterToNumPyArray(runoff_raster, nodata_to_value=0)
+#    r_sum = numpy.array.sum()
+#    r_m3 = (r_sum * 0.001 * rastercellsize ** 2)
+#
+#    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Q in m3 berechnet.")
+#
+#    return r_m3
 
 
 def set_resulttable(workspace, tablename, list_date, list_runoff, list_id):
@@ -248,10 +219,11 @@ def set_resulttable(workspace, tablename, list_date, list_runoff, list_id):
     :param list_id: Liste der Tages_IDs des Untersuchungszeitraums
     :return: Ergebnistabelle
     """
-    arcpy.CreateTable_management(workspace, tablename)
-    arcpy.AddField_management(workspace + "\\" + tablename, "Datum", "TEXT")
-    arcpy.AddField_management(workspace + "\\" + tablename, "Q", "DOUBLE")
-    arcpy.AddField_management(workspace + "\\" + tablename, "Tages_ID", "LONG")
+    if not(os.path.isdir(workspace + "\\" + tablename)):
+        arcpy.CreateTable_management(workspace, tablename)
+        arcpy.AddField_management(workspace + "\\" + tablename, "Datum", "TEXT")
+        arcpy.AddField_management(workspace + "\\" + tablename, "Q", "DOUBLE")
+        arcpy.AddField_management(workspace + "\\" + tablename, "Tages_ID", "LONG")
 
     q_cursor = arcpy.da.InsertCursor(workspace + "\\" + tablename, ["Datum", "Q", "Tages_ID"])
 
@@ -270,10 +242,10 @@ def set_resulttable(workspace, tablename, list_date, list_runoff, list_id):
 data = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb'
 basin = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\EZG_Schotten2_Vektor'
 basin_id = "Id"
-name = r'PY_SWM_test_085_150_200406.gdb'
+name = r'PY_SWM_2004_test.gdb'
 folder = r'C:\HiWi_Hydro-GIS'
-start = 20040601
-end = 20040630
+start = 20040101
+end = 20040110
 s_init = Raster(r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L')
 rp_factor = 0.85
 c = 150
@@ -283,7 +255,7 @@ check_aet = 0
 check_p = 0
 check_r = 0
 check_s = 0
-outname = "Ergebnistabelle_20040601_20040630"
+outname = "Ergebnistabelle_{}_{}".format(start, end)
 #  Erstellen der Ergebnisdatenbank und Wahl des Arbeitsverzeichnisses
 
 arcpy.env.overwriteOutput = True
@@ -293,8 +265,8 @@ if not(os.path.isdir(folder + "\\" + name)):
     arcpy.AddMessage(
         time.strftime("%H:%M:%S: ") + "Die Ergebnisdatenbank wurde im Verzeichnis {} erstellt.".format(folder))
 arcpy.env.workspace = folder + "\\" + name
-#  arcpy.env.scratchWorkspace = arcpy.env.workspace
-arcpy.env.mask = basin
+arcpy.env.scratchWorkspace = r'C:\HiWi_Hydro-GIS\Scratch'
+#  arcpy.env.mask = basin
 
 arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Vorhandene Ergebnisdatenbank wird überschrieben.")
 
@@ -349,20 +321,27 @@ with arcpy.da.SearchCursor(climatedata, ['Tagesid', 'Jahr', 'Monat', 'Tag', 'Rel
         pet = get_pet(haude_dic[month], temp, humid, check_pet, id_day)
         aet = get_aet(pet, water, s_pre, rp, rpwp_dif, wp, check_aet, id_day)
         precipitation = get_precipitation(p_data, p_temp, id_day, idw_exponent, cellsize, check_p)
-        runoff = get_runoff(water, lambda_parameter, wp, precipitation, s_pre, fk, pet, check_r, id_day)
-        s = get_soilwater(s_pre, precipitation, aet, runoff, check_s, id_day)
-        runoff_m3 = get_q_m3(runoff, cellsize)
+        #  runoff = get_runoff(water, lambda_parameter, wp, precipitation, s_pre, fk, pet, check_r, id_day)
+        r_overflow = Con(precipitation + s_pre > fk, precipitation + s_pre - fk, 0)
+
+        r_land = Con(water == 0, lambda_parameter * ((s_pre - wp) ** 2) + r_overflow, 0)
+
+        r = r_land + water * Con(precipitation > pet, precipitation - pet, 0)
+        arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Abfluss berechnet.")
+        ZonalStatisticsAsTable(basin, basin_id, r, "Q_day", "true", "SUM")
+        #  runoff_m3 = aet.mean * 9309  # * 0.001 * cellsize * cellsize
+        arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Abfluss summiert in m3.")
+        s = get_soilwater(s_pre, precipitation, aet, r, check_s, id_day)
 
         s_pre = s  # Überschreiben des Bodenwasserspeichers des Vortages
 
-        runoff_daily.append(runoff_m3)  # Berechnung des Durchflusses
+        #  runoff_daily.append(round(runoff_m3, 4))  # Berechnung des Durchflusses
+        with arcpy.da.SearchCursor("Q_day", "Sum") as r_cursor:
+            for r_sum in r_cursor:
+                runoff_daily.append(r_sum[0] * 0.001 * cellsize ** 2)
+        print(runoff_daily)
         id_list.append(id_day)
         date_list.append("{0}.{1}.{2}".format(day, month, year))
-
-        #  Löschen der temporären Rasterdatei des IDWs
-        idwraster_data = arcpy.ListRasters()
-        for raster in idwraster_data:
-            arcpy.Delete_management(raster)
 
         arcpy.AddMessage(time.strftime("%H:%M:%S: ") +
                          "Fertig mit der Berechnung des {0}.{1}.{2}".format(day, month, year))
@@ -373,6 +352,7 @@ set_resulttable(arcpy.env.workspace, outname, date_list, runoff_daily, id_list)
 # Löschen der temporären Objekte
 del cursor
 del row
+del r_cursor
 arcpy.Delete_management("p_temp")
 
 arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Modellierung Abgeschlossen.")
