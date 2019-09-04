@@ -57,9 +57,9 @@ def get_pet(haude_factor, temperature, humidity, date):
     :return: PET des Tages (Typ: raster)
     """
     pet_raster = haude_factor * (6.1 * 10 ** ((7.5 * temperature) / (temperature + 237.2))) * (1.0 - humidity / 100.0)
-    pet_raster.save("PET_{}".format(date))
-
+    pet_raster.save("PET_{}.tif".format(date))
     print(time.strftime("%H:%M:%S: ") + "PET ausgeführt.")
+
     return pet_raster
 
 
@@ -81,9 +81,9 @@ def get_aet(pet_raster, water_raster, s_pre_raster, rp_raster, rpwp_dif_raster, 
     aet_raster = Con(water_raster == 1, pet_raster,
                      Con(s_pre_raster >= rp_raster, pet_raster,
                          Con(rpwp_dif_raster == 0, 0, ((s_pre_raster - wp_raster) / rpwp_dif_raster) * pet_raster)))
-    aet_raster.save("AET_{}".format(date))
+    aet_raster.save("AET_{}.tif".format(date))
+    print(time.strftime("%H:%M:%S: ") + "AET ausgeführt.")
 
-    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "AET ausgeführt.")
     return aet_raster
 
 
@@ -110,10 +110,10 @@ def get_precipitation(dataspace, date, idw_pow, rastercellsize):
 
     # Niederschlagsinterpolation mittels Inverse Distance Weighting (IDW)
     idw = Idw("p_temp", "N_Zeitreihen.Tagessumme_mm", rastercellsize, idw_pow, RadiusFixed(20000.00000, 5), "")
-    idw.save("Niederschlag_{}".format(date))
+    idw.save("IDW_{}.tif".format(date))
     arcpy.Delete_management("p_temp")
+    print(time.strftime("%H:%M:%S: ") + "P ausgeführt.")
 
-    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "P ausgeführt.")
     return idw
 
 
@@ -127,7 +127,7 @@ def overflow(p_raster, s_pre_raster, fk_raster):
     r_overflow = Con(p_raster + s_pre_raster > fk_raster,
                      p_raster + s_pre - fk_raster, 0)
 
-    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Ueberlauf ausgeführt.")
+    print(time.strftime("%H:%M:%S: ") + "Ueberlauf ausgeführt.")
     return r_overflow
 
 
@@ -144,7 +144,7 @@ def runoff_land(water_raster, lambda_param, wp_raster, p_raster, s_pre_raster, f
     r_land = Con(water_raster == 0,
                  lambda_param * ((s_pre - wp_raster) ** 2) + overflow(p_raster, s_pre_raster, fk_raster), 0)
 
-    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Landabfluss ausgeführt.")
+    print(time.strftime("%H:%M:%S: ") + "Landabfluss ausgeführt.")
     return r_land
 
 
@@ -165,9 +165,9 @@ def get_runoff(water_raster, lambda_param, wp_raster, p_raster, s_pre_raster, fk
     """
     r = runoff_land(water_raster, lambda_param, wp_raster, p_raster, s_pre_raster, fk_raster) +\
         water_raster * Con(p_raster > pet_raster, p_raster - pet_raster, 0)
-    r.save("R_{}".format(date))
+    r.save("R_{}.tif".format(date))
+    print(time.strftime("%H:%M:%S: ") + "Gesamtabfluss ausgeführt.")
 
-    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Gesamtabfluss ausgeführt.")
     return r
 
 
@@ -183,9 +183,9 @@ def get_soilwater(s_pre_raster, p_raster, aet_raster, runoff_raster, date):
     :return: Aktueller Bodenwasserspeicher (Typ: raster)
     """
     soilwater = s_pre_raster + p_raster - aet_raster - runoff_raster
-    soilwater.save("S_{}".format(date))
-
+    soilwater.save("S_{}.tif".format(date))
     print(time.strftime("%H:%M:%S: ") + "Bodenwasserspeicher ausgeführt.")
+
     return soilwater
 
 
@@ -199,9 +199,49 @@ def get_q_m3(runoff_raster, rastercellsize):
     array = arcpy.RasterToNumPyArray(runoff_raster, nodata_to_value=0)
     r_sum = array.sum()
     r_m3 = (r_sum * 0.001 * rastercellsize ** 2)
+    print(time.strftime("%H:%M:%S: ") + "Q in m3 berechnet.")
 
-    arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Q in m3 berechnet.")
     return r_m3
+
+
+def delete_raster(yesterday, bool_pet, bool_aet, bool_p, bool_r, bool_s):
+    """
+    Löscht wenn gewünscht die erstellten Rasterdateien. Es können nur die Dateien des Vortages gelöscht werden. Die des
+    ersten und letzten Tages müssen nach dem Cursor des Hauptprogramms separat gelöscht werden.
+    :param yesterday: Tages ID des Vortages (Typ: integer)
+    :param bool_pet: Angabe ob der Ausgabedatensatz gespeichert werden soll (Typ: boolean)
+    :param bool_aet: Angabe ob der Ausgabedatensatz gespeichert werden soll (Typ: boolean)
+    :param bool_p: Angabe ob der Ausgabedatensatz gespeichert werden soll (Typ: boolean)
+    :param bool_r: Angabe ob der Ausgabedatensatz gespeichert werden soll (Typ: boolean)
+    :param bool_s: Angabe ob der Ausgabedatensatz gespeichert werden soll (Typ: boolean)
+    :return:
+    """
+    if not bool_pet:
+        arcpy.Delete_management("PET_{}.tif".format(yesterday))
+    if not bool_aet:
+        arcpy.Delete_management("AET_{}.tif".format(yesterday))
+    if not bool_p:
+        arcpy.Delete_management("IDW_{}.tif".format(yesterday))
+    if not bool_r:
+        arcpy.Delete_management("R_{}.tif".format(yesterday))
+    if not bool_s:
+        arcpy.Delete_management("S_{}.tif".format(yesterday))
+
+
+def write_to_table(resultspace, tablename, result, date):
+    """
+    Schreibt einen Ergebniswert und das zugehörige Datum in die Ergebnistabelle.
+    :param resultspace: Dateipfad des Workspace (Typ: sting)
+    :param tablename: Name der Ergebnistabelle (Typ: string)
+    :param result: Gesamtabfluss des EZGs in m^3 (Typ: float)
+    :param date: Tages ID (Typ: string)
+    :return:
+    """
+    q_cursor = arcpy.da.InsertCursor(r'{0}\Ergebnistabellen.gdb\{1}'.format(resultspace, tablename),
+                                             ["Datum", "Q"])
+    output_row = ["{0}.{1}.{2}".format(date[-2:], date[-4:-2], date[:3]), result]
+    q_cursor.insertRow(output_row)
+    del q_cursor
 
 
 ########################################################################################################################
@@ -211,19 +251,19 @@ def get_q_m3(runoff_raster, rastercellsize):
 data = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb'
 basin = r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\EZG_Schotten2_Vektor'
 basin_id = "Id"
-name = r'PY_all_by_mask.gdb'
+name = r'PY_delete_all_ergebtable'
 folder = r'C:\HiWi_Hydro-GIS'
-start = 20030101  # Startdatum: JJJJMMTT
-end = 20030102  # Enddatum: JJJJMMTT
+id_yesterday = start = 20030130  # Startdatum: JJJJMMTT
+end = 20030202  # Enddatum: JJJJMMTT
 s_init = ExtractByMask(Raster(r'C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L'), basin)
 rp_factor = 0.85
 c = 150
 idw_exponent = "1"
-check_pet = bool(1)
-check_aet = bool(1)
-check_p = bool(1)
-check_r = bool(1)
-check_s = bool(1)
+check_pet = False
+check_aet = False
+check_p = False
+check_r = False
+check_s = False
 outname = "Ergebnistabelle_{}_{}".format(start, end)
 
 ########################################################################################################################
@@ -236,7 +276,9 @@ workspace = arcpy.env.workspace = r'{}\{}'.format(folder, name)
 
 if arcpy.Exists(workspace):
     arcpy.Delete_management(workspace)
-arcpy.CreateFileGDB_management(folder, name)
+arcpy.CreateFolder_management(folder, name)
+
+arcpy.CreateFileGDB_management(workspace, "Ergebnistabellen.gdb")
 
 arcpy.CreateFolder_management(folder, "Scratch")
 arcpy.env.scratchWorkspace = r'{}\Scratch'.format(folder)
@@ -274,10 +316,9 @@ cellsize = s_init.meanCellHeight
 lambda_parameter = (c / (ExtractByMask(Raster(r'{}\L_in_metern'.format(data)), basin) * 1000) ** 2)
 
 # Erstellen der Ergebnistabelle
-result_path = arcpy.CreateTable_management(workspace, outname)
+result_path = arcpy.CreateTable_management(r'{}\Ergebnistabellen.gdb'.format(workspace), outname)
 arcpy.AddField_management(result_path, "Datum", "TEXT")
 arcpy.AddField_management(result_path, "Q", "DOUBLE")
-arcpy.AddField_management(result_path, "Tages_ID", "LONG")
 
 print(time.strftime("%H:%M:%S: ") + "Berechnung der Rasterdatensaetze war erfolgreich.")
 
@@ -308,18 +349,16 @@ with arcpy.da.SearchCursor(climatedata, ['Tagesid', 'Jahr', 'Monat', 'Tag', 'Rel
         s = get_soilwater(s_pre, precipitation, aet, runoff, id_day)
 
         s_pre = s  # Überschreiben des Bodenwasserspeichers des Vortages
-
-        # Einfügen des Ablusses in die Ergebnistabelle
-        q_cursor = arcpy.da.InsertCursor(r'{0}\{1}'.format(workspace, outname),
-                                         ["Datum", "Q", "Tages_ID"])
-        output_row = ["{0}.{1}.{2}".format(day, month, year), runoff_m3, id_day]
-        q_cursor.insertRow(output_row)
-
-        del q_cursor
+        if not id_yesterday == start:
+            delete_raster(id_yesterday, check_pet, check_aet, check_p, check_r, check_s)
+        id_yesterday = id_day
+        write_to_table(workspace, outname, runoff_m3, str(id_day))
 
         print(time.strftime("%H:%M:%S: ") + "Fertig mit der Berechnung des {0}.{1}.{2}".format(day, month, year))
 
 del cursor
+for i in [start, end]:
+    delete_raster(i, check_pet, check_aet, check_p, check_r, check_s)
 arcpy.Delete_management(r'{}\Scratch'.format(folder))
 
 print(time.strftime("%H:%M:%S: ") + "Modellierung Abgeschlossen.")
