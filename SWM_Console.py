@@ -4,21 +4,21 @@
 Lehrveranstaltung "GIS für hydrologische Fragestellungen" des Fachbereich 11 Institut für Physische Geographie der
 Johann Wolfgang Goethe Universität Frankfurt am Main.
 
-Dieses einfache Bodenwasser-Modell berechnet für jede Rasterzelle eines Einzugsgebietes ein Boden-Wasser-Bilanz. Ausgabe
-des Modells ist eine Tabelle mit täglichem Abflussvolumen in m³ für das Einzugsgebietsowie aufWunsch die berechneten
-Rasterdatensätze verschiedener Modellparameter.
+Dieses einfache Bodenwasser-Modell berechnet für jede Rasterzelle eines Einzugsgebietes eine Boden-Wasser-Bilanz.
+Ausgabe des Modells ist eine Tabelle des täglichen Abflussvolumen in m³ für das Einzugsgebiet sowie wenn ausgewählt, die
+berechneten Rasterdatensätze verschiedener Modellparameter.
 Voraussetzung ist das Vorhandensein der folgenden Datensätze in einer gemeinsamen File Geodatabase:
-Einzugsgebiet(e)- Vektor (Polygon) (Inhalt und Struktur siehe Eingabedatensatz Einzugsgebiet)
-TempFeuchte - Tabelle mit den Klimadaten. Die Attributetabelle muss die Felder Tagesid, Jahr, Monat, Tag, RelFeu, und
-Temp enthalten
+Einzugsgebiet(e)- Vektor (Polygon)
+TempFeuchte - Tabelle mit den Klimadaten. Die Attributetabelle muss die Felder: "Tagesid", "Jahr", "Monat", "Tag",
+                "RelFeu", und "Temp" enthalten
 fk_von_l - Raster (Feldkapazität in der effektiven Wurzelzone, in mm)
 L_in_metern- Raster (effektive Wurzelzone, in m)
 wp - Raster (Welkepunkt, in mm)
 Gewaesser- Raster (Gewässerflächenmaske mit Gewässer = 1 und nicht-Gewässer 0 )
-N_Zeitreihen- Tabelle mit Niederschlagsdaten für jeden Tag und jede Messstation. Die Attributetabelle muss die Felder
-Stationsnummer, Tagessumme_mm und TagesID enthalten
-N_Messstationen- Vektor (Punkte); Messstationen des Niederschlags. Die Attributetabelle muss das Feld Stationsnummer
-enthalten
+N_Zeitreihen- Tabelle mit Niederschlagsdaten für jeden Tag und jede Messstation. Die Attributetabelle muss die Felder:
+                "Stationsnummer", "Tagessumme_mm" und "TagesID" enthalten
+N_Messstationen- Vektor (Punkte); Messstationen des Niederschlags. Die Attributetabelle muss das Feld "Stationsnummer"
+                    enthalten
 """
 
 __author__ = "Florian Herz"
