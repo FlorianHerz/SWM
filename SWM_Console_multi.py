@@ -1,30 +1,29 @@
 # -*- coding: cp1252 -*-
 
 """Soil Water Model in Python für ArcGIS
-Lehrveranstaltung "GIS für hydrologische Fragestellungen" des Fachbereich 11 Institut für Physische Geographie der
-Johann Wolfgang Goethe Universität Frankfurt am Main.
+Course "GIS für hydrologische Fragestellungen" of the Faculty 11 of the Institute of Physical Geography at the Johann
+Wolfgang Goethe University of Frankfurt.
 
-Dieses einfache Bodenwasser-Modell berechnet für jede Rasterzelle eines Einzugsgebietes eine Boden-Wasser-Bilanz.
-Ausgabe des Modells ist eine Tabelle des täglichen Abflussvolumen in m³ für das Einzugsgebiet sowie wenn ausgewählt, die
-berechneten Rasterdatensätze verschiedener Modellparameter.
-Voraussetzung ist das Vorhandensein der folgenden Datensätze in einer gemeinsamen File Geodatabase:
-Einzugsgebiet(e)- Vektor (Polygon)
-TempFeuchte - Tabelle mit den Klimadaten. Die Attributetabelle muss die Felder: "Tagesid", "Jahr", "Monat", "Tag", 
-                "RelFeu", und "Temp" enthalten
-fk_von_l - Raster (Feldkapazität in der effektiven Wurzelzone, in mm)
-L_in_metern- Raster (effektive Wurzelzone, in m)
-wp - Raster (Welkepunkt, in mm)
-Gewaesser- Raster (Gewässerflächenmaske mit Gewässer = 1 und nicht-Gewässer 0 )
-N_Zeitreihen- Tabelle mit Niederschlagsdaten für jeden Tag und jede Messstation. Die Attributetabelle muss die Felder:
-                "Stationsnummer", "Tagessumme_mm" und "TagesID" enthalten
-N_Messstationen- Vektor (Punkte); Messstationen des Niederschlags. Die Attributetabelle muss das Feld "Stationsnummer"
-                    enthalten
+This simple Soil Water Model calculates the soilwater content for each rastercell of a basin. The output of the model
+are tables of the daily runoff in m³ of the basin for each combination of variables and if selected, the raster datasets
+of diffrent modelparameter like PET, AET, precipitation, runoff or soilwater.
+The following datasets are neccessary for the model and has to exist together in a File Geodatabase:
+basin(s) - vector (polygon)
+TempFeuchte - table of climate data. The attribute table has to have the field names as followed: "Tagesid", "Jahr",
+            "Monat", "Tag", "RelFeu", and "Temp".
+fk_von_l - raster (field capacity in the effective root zone, in mm)
+L_in_metern- raster (effective root zone, in m)
+wp - raster (wilting point, in mm)
+Gewaesser- raster (mask of water areas with water areas = 1 and non water areas = 0)
+N_Zeitreihen - table of precipitation data for each day and station. The attribute table has to have the field names as
+            followed: "Stationsnummer", "Tagessumme_mm" and "TagesID".
+N_Messstationen- vector (points); Stations for precipitation measuring. The attribute table has to have the field name
+                as followed: "Stationsnummer"
 """
 
 __author__ = "Florian Herz"
 __copyright__ = "Copyright 2019, FH"
-__credits__ = ["Florian Herz", "Dr. Hannes Müller Schmied",
-               "Dr. Irene Marzolff"]
+__credits__ = ["Florian Herz", "Dr. Hannes Müller Schmied", "Dr. Irene Marzolff"]
 __version__ = "2.0"
 __maintainer__ = "Florian Herz"
 __email__ = "florian13.herz@googlemail.com"
@@ -198,11 +197,21 @@ def write_to_table(resultspace, tablename, result, date):
     :param date: daily ID (::type: integer)
     :return:
     """
-    q_cursor = arcpy.da.InsertCursor(r'{0}\Ergebnistabellen.gdb\{1}'.format(resultspace, tablename),
-                                             ["Datum", "Q"])
+    q_cursor = arcpy.da.InsertCursor(r'{0}\Ergebnistabellen.gdb\{1}'.format(resultspace, tablename), ["Datum", "Q"])
     output_row = ["{0}.{1}.{2}".format(date[-2:], date[-4:-2], date[:4]), result]
     q_cursor.insertRow(output_row)
     del q_cursor
+
+
+def rasterquotient_array(dividend, divisor):
+    """
+    Calculates the quotient of two rasters in a numpy array.
+    :param dividend: first raster object (:type: raster)
+    :param divisor: second raster object (:type: raster)
+    :return: numpy array of the quotient (:type: array)
+    """
+    quotient_array = arcpy.RasterToNumPyArray(dividend/divisor, nodata_to_value=0)
+    return quotient_array
 
 
 ########################################################################################################################
@@ -251,7 +260,7 @@ print(time.strftime("%H:%M:%S: ") + "Die Ergebnisdatenbank wurde im Verzeichnis 
 
 ########################################################################################################################
 #  link and extract the base datasets
-#  (The datasets has to be saved with the exact name in the base directory.)
+#  (The datasets has to be saved with the same name as below in the base directory.)
 ########################################################################################################################
 
 # dictionary to link the month and its specific haudefactor
@@ -270,6 +279,8 @@ haude_dic = {1: ExtractByMask(Raster(r'{}\Haude_1'.format(data)), basin),
 climatedata = r'{}\TempFeuchte'.format(data)  # table
 fc = ExtractByMask(Raster(r'{}\fk_von_L'.format(data)), basin)  # raster
 wp = ExtractByMask(Raster(r'{}\wp'.format(data)), basin)  # raster
+wpfc_qarray = rasterquotient_array(wp, fc)  # calculates an array of the quotient of two rasters #  array
+rp_control = wpfc_qarray.max()  # extract the biggest vaule of the quotient of wp:fc to compare with the rp-factor
 water = ExtractByMask(Raster(r'{}\Gewaesser'.format(data)), basin)  # raster
 s_pre = s_init
 p_data = r'{}\N_Zeitreihen'.format(data)  # table
@@ -294,6 +305,9 @@ print(time.strftime("%H:%M:%S: ") + "Berechnung der Rasterdatensaetze war erfolg
 #  iterating through the climate data of the period
 ########################################################################################################################
 for z in range(len(rp_factor)):
+    if rp_control >= rp_factor[z]:  # the AET is negative, if the rp-factor is smaller than the quotient of wp:fc
+        print("RP-Faktor ist kleiner WP:FK. RP-Faktor = {} wird übersprungen.".format(rp_factor[z]))
+        continue  # skips all rp-factors smaller than the quotient of wp:fc
     rp = fc * rp_factor[z]
     rpwp_dif = rp - wp
     for y in range(len(c)):

@@ -1,30 +1,29 @@
 # -*- coding: cp1252 -*-
 
 """Soil Water Model in Python für ArcGIS
-Lehrveranstaltung "GIS für hydrologische Fragestellungen" des Fachbereich 11 Institut für Physische Geographie der
-Johann Wolfgang Goethe Universität Frankfurt am Main.
+Course "GIS für hydrologische Fragestellungen" of the Faculty 11 of the Institute of Physical Geography at the Johann
+Wolfgang Goethe University of Frankfurt.
 
-Dieses einfache Bodenwasser-Modell berechnet für jede Rasterzelle eines Einzugsgebietes eine Boden-Wasser-Bilanz.
-Ausgabe des Modells ist eine Tabelle des täglichen Abflussvolumen in m³ für das Einzugsgebiet sowie wenn ausgewählt, die
-berechneten Rasterdatensätze verschiedener Modellparameter.
-Voraussetzung ist das Vorhandensein der folgenden Datensätze in einer gemeinsamen File Geodatabase:
-Einzugsgebiet(e)- Vektor (Polygon)
-TempFeuchte - Tabelle mit den Klimadaten. Die Attributetabelle muss die Felder: "Tagesid", "Jahr", "Monat", "Tag", 
-                "RelFeu", und "Temp" enthalten
-fk_von_l - Raster (Feldkapazität in der effektiven Wurzelzone, in mm)
-L_in_metern- Raster (effektive Wurzelzone, in m)
-wp - Raster (Welkepunkt, in mm)
-Gewaesser- Raster (Gewässerflächenmaske mit Gewässer = 1 und nicht-Gewässer 0 )
-N_Zeitreihen- Tabelle mit Niederschlagsdaten für jeden Tag und jede Messstation. Die Attributetabelle muss die Felder:
-                "Stationsnummer", "Tagessumme_mm" und "TagesID" enthalten
-N_Messstationen- Vektor (Punkte); Messstationen des Niederschlags. Die Attributetabelle muss das Feld "Stationsnummer"
-                    enthalten
+This simple Soil Water Model calculates the soilwater content for each rastercell of a basin. The output of the model
+are tables of the daily runoff in m³ of the basin for each combination of variables and if selected, the raster datasets
+of diffrent modelparameter like PET, AET, precipitation, runoff or soilwater.
+The following datasets are neccessary for the model and has to exist together in a File Geodatabase:
+basin(s) - vector (polygon)
+TempFeuchte - table of climate data. The attribute table has to have the field names as followed: "Tagesid", "Jahr",
+            "Monat", "Tag", "RelFeu", and "Temp".
+fk_von_l - raster (field capacity in the effective root zone, in mm)
+L_in_metern- raster (effective root zone, in m)
+wp - raster (wilting point, in mm)
+Gewaesser- raster (mask of water areas with water areas = 1 and non water areas = 0)
+N_Zeitreihen - table of precipitation data for each day and station. The attribute table has to have the field names as
+            followed: "Stationsnummer", "Tagessumme_mm" and "TagesID".
+N_Messstationen- vector (points); Stations for precipitation measuring. The attribute table has to have the field name
+                as followed: "Stationsnummer"
 """
 
 __author__ = "Florian Herz"
 __copyright__ = "Copyright 2019, FH"
-__credits__ = ["Florian Herz", "Dr. Hannes Müller Schmied",
-               "Dr. Irene Marzolff"]
+__credits__ = ["Florian Herz", "Dr. Hannes Müller Schmied", "Dr. Irene Marzolff"]
 __version__ = "2.0"
 __maintainer__ = "Florian Herz"
 __email__ = "florian13.herz@googlemail.com"
@@ -198,56 +197,65 @@ def write_to_table(resultspace, tablename, result, date):
     :param date: daily ID (::type: integer)
     :return:
     """
-    q_cursor = arcpy.da.InsertCursor(r'{0}\Ergebnistabellen.gdb\{1}'.format(resultspace, tablename),
-                                             ["Datum", "Q"])
+    q_cursor = arcpy.da.InsertCursor(r'{0}\Ergebnistabellen.gdb\{1}'.format(resultspace, tablename), ["Datum", "Q"])
     output_row = ["{0}.{1}.{2}".format(date[-2:], date[-4:-2], date[:4]), result]
     q_cursor.insertRow(output_row)
     del q_cursor
+
+
+def rasterquotient_array(dividend, divisor):
+    """
+    Calculates the quotient of two rasters in a numpy array.
+    :param dividend: first raster object (:type: raster)
+    :param divisor: second raster object (:type: raster)
+    :return: numpy array of the quotient (:type: array)
+    """
+    quotient_array = arcpy.RasterToNumPyArray(dividend/divisor, nodata_to_value=0)
+    return quotient_array
 
 
 ########################################################################################################################
 #  User input in ArcMap
 ########################################################################################################################
 
-data = arcpy.GetParameterAsText(0)  # type: workspace #  default: C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb
-basin = arcpy.GetParameterAsText(1)  # type: Featurelayer
+data = arcpy.GetParameterAsText(0)  # datatype: workspace #  default: C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb
+basin = arcpy.GetParameterAsText(1)  # datatype: featurelayer
 #  default: C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\EZG_Schotten2_Vektor
-basin_id = arcpy.GetParameterAsText(2)  # Field #  default: Id
-name = arcpy.GetParameterAsText(9)  # type: string #  default: SWM_Schotten2_2003-2004
-folder = arcpy.GetParameterAsText(8)  # type: folder #  default: C:\HiWi_Hydro-GIS
-id_yesterday = start = int(arcpy.GetParameterAsText(4))  # type: long #  default: 20030101
-end = int(arcpy.GetParameterAsText(5))  # type: long #  default: 20041231
-s_init = ExtractByMask(Raster(arcpy.GetParameterAsText(3)), basin)  # type: geodataset
+basin_id = arcpy.GetParameterAsText(2)  # field #  default: Id
+name = arcpy.GetParameterAsText(9)  # datatype: string #  default: SWM_Schotten2_2003-2004
+folder = arcpy.GetParameterAsText(8)  # datatype: folder #  default: C:\HiWi_Hydro-GIS
+id_yesterday = start = int(arcpy.GetParameterAsText(4))  # datatype: long #  default: 20030101
+end = int(arcpy.GetParameterAsText(5))  # datatype: long #  default: 20041231
+s_init = ExtractByMask(Raster(arcpy.GetParameterAsText(3)), basin)  # datatype: geodataset
 #  default: C:\HiWi_Hydro-GIS\MTP_HydroGIS_Basisdaten.gdb\FK_von_L
-rp_factor_min = float(arcpy.GetParameterAsText(6))  # type: string #  default: 0.85
-rp_factor_max = float(arcpy.GetParameterAsText(16))  # type: string #  default: 0.85
-rp_factor_step = float(arcpy.GetParameterAsText(17))  # type: string #  default: 0.05
-c_min = int(arcpy.GetParameterAsText(7))   # type: string #  default: 150
-c_max = int(arcpy.GetParameterAsText(19))  # type: string #  default: 150
-c_step = int(arcpy.GetParameterAsText(20))  # type: string #  default: 50
-idw_exponent = arcpy.GetParameterAsText(21)  # type: string #  default: 1
-#  Abfrage welche Daten gespeichert werden sollen
-check_pet = arcpy.GetParameterAsText(10)  # type: boolean #  default: true
+rp_factor_min = float(arcpy.GetParameterAsText(6))  # datatype: string #  default: 0.85
+rp_factor_max = float(arcpy.GetParameterAsText(16))  # datatype: string #  default: 0.85
+rp_factor_step = float(arcpy.GetParameterAsText(17))  # datatype: string #  default: 0.05
+c_min = int(arcpy.GetParameterAsText(7))   # datatype: string #  default: 150
+c_max = int(arcpy.GetParameterAsText(19))  # datatype: string #  default: 150
+c_step = int(arcpy.GetParameterAsText(20))  # datatype: string #  default: 50
+idw_exponent = arcpy.GetParameterAsText(21)  # datatype: string #  default: 1
+check_pet = arcpy.GetParameterAsText(10)  # datatype: boolean #  default: true
 if check_pet == 'false':
     check_pet = False
 else:
     check_pet = True
-check_aet = arcpy.GetParameterAsText(11)  # type: boolean #  default: true
+check_aet = arcpy.GetParameterAsText(11)  # datatype: boolean #  default: true
 if check_aet == 'false':
     check_aet = False
 else:
     check_aet = True
-check_p = arcpy.GetParameterAsText(12)  # type: boolean #  default: true
+check_p = arcpy.GetParameterAsText(12)  # datatype: boolean #  default: true
 if check_p == 'false':
     check_p = False
 else:
     check_p = True
-check_r = arcpy.GetParameterAsText(13)  # type: boolean #  default: true
+check_r = arcpy.GetParameterAsText(13)  # datatype: boolean #  default: true
 if check_r == 'false':
     check_r = False
 else:
     check_r = True
-check_s = arcpy.GetParameterAsText(14)  # type: boolean #  default: true
+check_s = arcpy.GetParameterAsText(14)  # datatype: boolean #  default: true
 if check_s == 'false':
     check_s = False
 else:
@@ -271,7 +279,7 @@ arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Die Ergebnisdatenbank wurde im V
 
 ########################################################################################################################
 #  link and extract the base datasets
-#  (The datasets has to be saved with the exact name in the base directory.)
+#  (The datasets has to be saved with the same name as below in the base directory.)
 ########################################################################################################################
 
 # dictionary to link the month and its specific haudefactor
@@ -290,6 +298,8 @@ haude_dic = {1: ExtractByMask(Raster(r'{}\Haude_1'.format(data)), basin),
 climatedata = r'{}\TempFeuchte'.format(data)  # table
 fc = ExtractByMask(Raster(r'{}\fk_von_L'.format(data)), basin)  # raster
 wp = ExtractByMask(Raster(r'{}\wp'.format(data)), basin)  # raster
+wpfc_qarray = rasterquotient_array(wp, fc)  # calculates an array of the quotient of two rasters #  array
+rp_control = wpfc_qarray.max()  # extract the biggest vaule of the quotient of wp:fc to compare with the rp-factor
 water = ExtractByMask(Raster(r'{}\Gewaesser'.format(data)), basin)  # raster
 s_pre = s_init
 p_data = r'{}\N_Zeitreihen'.format(data)  # table
@@ -314,6 +324,9 @@ arcpy.AddMessage(time.strftime("%H:%M:%S: ") + "Berechnung der Rasterdatensaetze
 #  iterating through the climate data of the period
 ########################################################################################################################
 for z in range(len(rp_factor)):
+    if rp_control >= rp_factor[z]:  # the AET is negative, if the rp-factor is smaller than the quotient of wp:fc
+        print("RP-Faktor ist kleiner WP:FK. RP-Faktor = {} wird übersprungen.".format(rp_factor[z]))
+        continue  # skips all rp-factors smaller than the quotient of wp:fc
     rp = fc * rp_factor[z]
     rpwp_dif = rp - wp
     for y in range(len(c)):
